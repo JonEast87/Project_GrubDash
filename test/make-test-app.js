@@ -1,19 +1,19 @@
-const express = require("express");
-const notFound = require("../src/errors/notFound");
-const errorHandler = require("../src/errors/errorHandler");
+const express = require('express')
+const notFound = require('../src/errors/notFound')
+const errorHandler = require('../src/errors/errorHandler')
 
 function makeTestApp(path, router) {
-  const app = express();
+	const app = express()
 
-  app.use(express.json());
+	app.use(express.json())
 
-  app.use(path, router);
+	app.use(path, router)
 
-  app.use(notFound);
+	app.use(notFound)
 
-  app.use(errorHandler);
+	app.use(errorHandler)
 
-  return app;
+	return app
 }
 
-module.exports = makeTestApp;
+module.exports = makeTestApp
