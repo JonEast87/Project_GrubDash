@@ -7,8 +7,10 @@ const dishes = require(path.resolve('src/data/dishes-data'))
 const nextId = require('../utils/nextId')
 
 // TODO: Implement the /dishes handlers needed to make the tests pass
-// Validation handlers
-// dishExists
+
+// --- Validation handlers ---
+
+// checks to see if an order exists with a find method
 function dishExists(req, res, next) {
 	const dishId = Number(req.params.dishId)
 	const foundDish = dishes.find((dish) => dish.id === dishId)
@@ -22,7 +24,7 @@ function dishExists(req, res, next) {
 	})
 }
 
-// dataExists
+// checks to see if the necessary property exists in the req.body
 function dataExists(propertyName) {
 	return function (req, res, next) {
 		const { data = {} } = req.body
@@ -31,21 +33,9 @@ function dataExists(propertyName) {
 	}
 }
 
-// HTTP handlers
+// --- HTTP handlers ---
 
-// listDishes
-function list(req, res) {
-	res.json({ data: dishes })
-}
-
-// readDishes
-function read(req, res) {
-	const dishId = req.params.dishId
-	const foundDish = dishes.find((dish) => dish.id === dishId)
-	res.json({ data: res.locals.foundDish })
-}
-
-// createDishes
+// create handler
 function create(req, res) {
 	const { data: { name, description, price, img } = {} } = req.body
 	const newDish = {
@@ -59,7 +49,12 @@ function create(req, res) {
 	res.status(201).json({ data: newDish })
 }
 
-// updateDishes
+// read handler
+function read(req, res) {
+	res.json({ data: res.locals.dish })
+}
+
+// update handler
 function update(req, res) {
 	const dishId = Number(req.params.dishId)
 	const foundDish = dishes.find((dish) => dish.id === dishId)
@@ -73,22 +68,26 @@ function update(req, res) {
 	res.json({ data: foundDish })
 }
 
-module.exports ==
-	{
-		list,
-		read: [dishExists, read],
-		create: [
-			dataExists('name'),
-			dataExists('description'),
-			dataExists('price'),
-			dataExists('imgage_url'),
-			create,
-		],
-		update: [
-			dataExists('name'),
-			dataExists('description'),
-			dataExists('price'),
-			dataExists('imgage_url'),
-			update,
-		],
-	}
+// list handler
+function list(req, res) {
+	res.json({ data: dishes })
+}
+
+module.exports = {
+	list,
+	read: [dishExists, read],
+	create: [
+		dataExists('name'),
+		dataExists('description'),
+		dataExists('price'),
+		dataExists('imgage_url'),
+		create,
+	],
+	update: [
+		dataExists('name'),
+		dataExists('description'),
+		dataExists('price'),
+		dataExists('imgage_url'),
+		update,
+	],
+}

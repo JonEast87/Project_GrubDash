@@ -8,7 +8,34 @@ const nextId = require('../utils/nextId')
 
 // TODO: Implement the /orders handlers needed to make the tests pass
 
-// createOrder
+// --- Validation handlers ---
+
+// checks to see if an order exists with a find method
+function orderExists() {
+	const orderId = Number(req.params.orderId)
+	const foundOrder = orders.find((order) => order.id === orderId)
+	if (foundOrder) {
+		res.locals.url = foundOrder
+		return next()
+	}
+	next({
+		status: 404,
+		message: `Order id is not found: ${req.params.orderId}`,
+	})
+}
+
+// checks to see if the necessary property exists in the req.body
+function dataExists(propertyName) {
+	return function (req, res, next) {
+		const { data = {} } = req.body
+		if (data[propertyName]) return next()
+		next({ status: 400, message: `Must include a ${propertyName}` })
+	}
+}
+
+// --- HTTP handlers ---
+
+// create handler
 function create(req, res) {
 	const { data: { deliverTo, mobileNumber, status } = {} } = req.body
 	const newOrder = {
@@ -21,12 +48,12 @@ function create(req, res) {
 	res.status(201).json({ data: newOrder })
 }
 
-// readOrder
+// read handler
 function read(req, res) {
 	res.json({ data: res.locals.order })
 }
 
-// updateOrder
+// update handler
 function update(req, res) {
 	const orderId = Number(req.params.orderId)
 	const foundOrder = orders.find((order) => order.id === orderId)
@@ -40,7 +67,7 @@ function update(req, res) {
 	res.json({ data: foundOrder })
 }
 
-// deleteOrder
+// delete handler
 function destroy(req, res) {
 	const { orderId } = req.params
 	const index = orders.findIndex((order) => order.id === Number(orderId))
@@ -50,44 +77,13 @@ function destroy(req, res) {
 	res.sendStatus(204)
 }
 
-// listOrders
+// list handler
 function list(req, res) {
 	res.json({ data: orders })
 }
 
-// orderExists
-function exists() {
-	const orderId = Number(req.params.orderId)
-	const foundOrder = orders.find((order) => order.id === orderId)
-	if (foundOrder) {
-		res.locals.url = foundOrder
-		return next()
-	}
-	next({
-		status: 404,
-		message: `Order id is not found: ${req.params.orderId}`,
-	})
-}
-
-// dataExists
-function dataExists(propertyName) {
-	return function (req, res, next) {
-		const { data = {} } = req.body
-		if (data[propertyName]) return next()
-		next({ status: 400, message: `Must include a ${propertyName}` })
-	}
-}
-
 module.exports = {
-	create: [
-		dataExists('deliverTo'),
-		dataExists('mobileNumber'),
-		dataExists('status'),
-		// dataExists('dishes'),
-		create,
-	],
-	list,
-	read: [exists, read],
+	read: [orderExists, read],
 	update: [
 		dataExists('deliverTo'),
 		dataExists('mobileNumber'),
@@ -95,4 +91,12 @@ module.exports = {
 		update,
 	],
 	delete: destroy,
+	list,
+	create: [
+		dataExists('deliverTo'),
+		dataExists('mobileNumber'),
+		dataExists('status'),
+		// dataExists('dishes'),
+		create,
+	],
 }
