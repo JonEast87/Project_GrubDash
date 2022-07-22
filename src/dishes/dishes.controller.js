@@ -12,7 +12,7 @@ const nextId = require('../utils/nextId')
 
 // checks to see if an order exists with a find method
 function dishExists(req, res, next) {
-	const dishId = Number(req.params.dishId)
+	const { dishId } = req.params
 	const foundDish = dishes.find((dish) => dish.id === dishId)
 	if (foundDish) {
 		res.locals.dish = foundDish
@@ -20,30 +20,70 @@ function dishExists(req, res, next) {
 	}
 	next({
 		status: 404,
-		message: `Dish id is not found: ${req.params.dishId}`,
+		message: `Dish id is not found: ${dishId}`,
 	})
 }
 
 // checks to see if the necessary property exists in the req.body
-function dataExists(propertyName) {
-	return function (req, res, next) {
-		const { data = {} } = req.body
-		if (data[propertyName]) return next()
-		next({ status: 400, message: `Must include a ${propertyName}` })
+function bodyExists(req, res, next) {
+	const { data: { name, description, price, image_url } = {} } = req.body
+	if (!name || name === '') {
+		next({
+			status: 400,
+			message: 'A name property is required.',
+		})
 	}
+	if (!description || description === '') {
+		next({
+			status: 400,
+			message: 'A description property is required.',
+		})
+	}
+	if (!price) {
+		next({
+			status: 400,
+			message: 'A price property is required.',
+		})
+	}
+	if (price < 0 || !Number.isInteger(price)) {
+		next({
+			status: 400,
+			message: 'price must be an integer above 0.',
+		})
+	}
+	if (!image_url || image_url === '') {
+		next({
+			status: 400,
+			message: 'A image_url property is required.',
+		})
+	}
+	next()
+}
+
+function idExists(req, res, next) {
+	const { dishId } = req.params
+	const { data: { id } = {} } = req.body
+	if (!id || id === dishId) {
+		res.locals.dishId = dishId
+		return next()
+	}
+	next({
+		status: 400,
+		message: `Dish id does not match route id. Dish ${id}. Route ${dishId}`,
+	})
 }
 
 // --- HTTP handlers ---
 
 // create handler
 function create(req, res) {
-	const { data: { name, description, price, img } = {} } = req.body
+	const { data: { name, description, price, image_url } = {} } = req.body
 	const newDish = {
 		id: nextId(),
-		name,
-		description,
-		price,
-		img,
+		name: name,
+		description: description,
+		price: price,
+		image_url: image_url,
 	}
 	dishes.push(newDish)
 	res.status(201).json({ data: newDish })
@@ -56,16 +96,17 @@ function read(req, res) {
 
 // update handler
 function update(req, res) {
-	const dishId = Number(req.params.dishId)
-	const foundDish = dishes.find((dish) => dish.id === dishId)
+	const { data: { name, description, price, image_url } = {} } = req.body
 
-	const { data: { name, description, price, img } = {} } = req.body
-	foundDish.name = name
-	foundDish.description = description
-	foundDish.price = price
-	foundDish.img = img
+	res.locals.dish = {
+		id: res.locals.dishId,
+		name: name,
+		description: description,
+		price: price,
+		image_url: image_url,
+	}
 
-	res.json({ data: foundDish })
+	res.json({ data: res.locals.dish })
 }
 
 // list handler
@@ -76,18 +117,6 @@ function list(req, res) {
 module.exports = {
 	list,
 	read: [dishExists, read],
-	create: [
-		dataExists('name'),
-		dataExists('description'),
-		dataExists('price'),
-		dataExists('imgage_url'),
-		create,
-	],
-	update: [
-		dataExists('name'),
-		dataExists('description'),
-		dataExists('price'),
-		dataExists('imgage_url'),
-		update,
-	],
+	create: [bodyExists, create],
+	update: [dishExists, bodyExists, idExists, update],
 }

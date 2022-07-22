@@ -15,7 +15,7 @@ function orderExists() {
 	const orderId = Number(req.params.orderId)
 	const foundOrder = orders.find((order) => order.id === orderId)
 	if (foundOrder) {
-		res.locals.url = foundOrder
+		res.locals.order = foundOrder
 		return next()
 	}
 	next({
@@ -24,25 +24,54 @@ function orderExists() {
 	})
 }
 
-// checks to see if the necessary property exists in the req.body
-function dataExists(propertyName) {
-	return function (req, res, next) {
-		const { data = {} } = req.body
-		if (data[propertyName]) return next()
-		next({ status: 400, message: `Must include a ${propertyName}` })
+// checks to see if the necessary properties exists in the req.body
+function bodyExists(req, res, next) {
+	const { data: { deliverTo, mobileNumber, status, dishes } = {} } = req.body
+	if (!deliverTo || deliverTo === '') {
+		next({
+			status: 400,
+			message: 'Order must include a deliverTo.',
+		})
 	}
+	if (!mobileNumber || mobileNumber === '') {
+		next({
+			status: 400,
+			message: 'Order must include a mobileNumber.',
+		})
+	}
+	if (!Array.isArray(dishes) || dishes.length === 0) {
+		next({
+			status: 400,
+			message: 'Order must include at least one dish.',
+		})
+	}
+	dishes.map((dish, index) => {
+		if (
+			!dish.quantity ||
+			!Number.isInteger(dish.quantity) ||
+			!dish.quantity > 0
+		) {
+			return next({
+				status: 400,
+				message: `Dish ${index} must have a quantity that is an integer greater than 0.`,
+			})
+		}
+	})
+	res.locals.order = req.body.data
+	next()
 }
 
 // --- HTTP handlers ---
 
 // create handler
 function create(req, res) {
-	const { data: { deliverTo, mobileNumber, status } = {} } = req.body
+	const { data: { deliverTo, mobileNumber, status, dishes } = {} } = req.body
 	const newOrder = {
 		id: nextId(),
-		deliverTo,
-		mobileNumber,
-		status,
+		deliverTo: deliverTo,
+		mobileNumber: mobileNumber,
+		status: status,
+		dishes: dishes,
 	}
 	orders.push(newOrder)
 	res.status(201).json({ data: newOrder })
@@ -55,16 +84,16 @@ function read(req, res) {
 
 // update handler
 function update(req, res) {
-	const orderId = Number(req.params.orderId)
-	const foundOrder = orders.find((order) => order.id === orderId)
+	const { data: { deliverTo, mobileNumber, status, dishes } = {} } = req.body
+	res.locals.order = {
+		id: response.locals.id,
+		deliverTo: deliverTo,
+		mobileNumber: mobileNumber,
+		dishes: dishes,
+		status: status,
+	}
 
-	const { data: { deliverTo, mobileNumber, status } = {} } = req.body
-
-	foundOrder.deliverTo = deliverTo
-	foundOrder.mobileNumber = mobileNumber
-	foundOrder.status = status
-
-	res.json({ data: foundOrder })
+	res.json({ data: res.locals.order })
 }
 
 // delete handler
@@ -84,19 +113,8 @@ function list(req, res) {
 
 module.exports = {
 	read: [orderExists, read],
-	update: [
-		dataExists('deliverTo'),
-		dataExists('mobileNumber'),
-		dataExists('status'),
-		update,
-	],
+	update: [bodyExists, orderExists, update],
 	delete: destroy,
 	list,
-	create: [
-		dataExists('deliverTo'),
-		dataExists('mobileNumber'),
-		dataExists('status'),
-		// dataExists('dishes'),
-		create,
-	],
+	create: [bodyExists, create],
 }
