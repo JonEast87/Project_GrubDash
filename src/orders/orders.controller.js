@@ -11,8 +11,8 @@ const nextId = require('../utils/nextId')
 // --- Validation handlers ---
 
 // checks to see if an order exists with a find method
-function orderExists() {
-	const orderId = Number(req.params.orderId)
+function orderExists(req, res, next) {
+	const { orderId } = req.params
 	const foundOrder = orders.find((order) => order.id === orderId)
 	if (foundOrder) {
 		res.locals.order = foundOrder
@@ -20,7 +20,7 @@ function orderExists() {
 	}
 	next({
 		status: 404,
-		message: `Order id is not found: ${req.params.orderId}`,
+		message: `Order id is not found: ${orderId}`,
 	})
 }
 
@@ -61,6 +61,46 @@ function bodyExists(req, res, next) {
 	next()
 }
 
+function statusExists(req, res, next) {
+	const { orderId } = req.params
+	const { data: { id, status } = {} } = req.body
+
+	if (id && id !== orderId) {
+		return next({
+			status: 400,
+			message: `Order id does not match route id. Order ${id}, Route: ${orderId}`,
+		})
+	} else if (
+		!status ||
+		status === '' ||
+		(status !== 'pending' &&
+			status !== 'preparing' &&
+			status !== 'out-for-delivery')
+	) {
+		return next({
+			status: 400,
+			message:
+				'Order must have a status of pending, preparing, out-for-delivery, delivered.',
+		})
+	} else if (status === 'delivered') {
+		return next({
+			status: 400,
+			message: 'A delivered order cannot be changed.',
+		})
+	}
+	next()
+}
+
+function pendingExists(req, res, next) {
+	if (res.locals.order.status !== 'pending') {
+		return next({
+			status: 400,
+			message: 'An order cannot be deleted unless it is in pending.',
+		})
+	}
+	next()
+}
+
 // --- HTTP handlers ---
 
 // create handler
@@ -86,7 +126,7 @@ function read(req, res) {
 function update(req, res) {
 	const { data: { deliverTo, mobileNumber, status, dishes } = {} } = req.body
 	res.locals.order = {
-		id: response.locals.id,
+		id: res.locals.order.id,
 		deliverTo: deliverTo,
 		mobileNumber: mobileNumber,
 		dishes: dishes,
@@ -98,11 +138,8 @@ function update(req, res) {
 
 // delete handler
 function destroy(req, res) {
-	const { orderId } = req.params
-	const index = orders.findIndex((order) => order.id === Number(orderId))
-	if (index > -1) {
-		orders.splice(index, 1)
-	}
+	const index = orders.indexOf(res.locals.order)
+	orders.splice(index, 1)
 	res.sendStatus(204)
 }
 
@@ -112,9 +149,9 @@ function list(req, res) {
 }
 
 module.exports = {
-	read: [orderExists, read],
-	update: [bodyExists, orderExists, update],
-	delete: destroy,
 	list,
 	create: [bodyExists, create],
+	read: [orderExists, read],
+	update: [bodyExists, orderExists, statusExists, update],
+	delete: [orderExists, pendingExists, destroy],
 }
