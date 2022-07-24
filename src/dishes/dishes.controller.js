@@ -11,7 +11,7 @@ const nextId = require('../utils/nextId')
 // --- Validation handlers ---
 
 // checks to see if an order exists with a find method
-function dishExists(req, res, next) {
+function bodyHasDish(req, res, next) {
 	const { dishId } = req.params
 	const foundDish = dishes.find((dish) => dish.id === dishId)
 	if (foundDish) {
@@ -20,57 +20,45 @@ function dishExists(req, res, next) {
 	}
 	next({
 		status: 404,
-		message: `Dish id is not found: ${dishId}`,
+		message: `Dish id is not found: ${dishId}.`,
 	})
 }
 
 // checks to see if the necessary property exists in the req.body
-function bodyExists(req, res, next) {
-	const { data: { name, description, price, image_url } = {} } = req.body
-	if (!name || name === '') {
-		next({
-			status: 400,
-			message: 'A name property is required.',
-		})
+function bodyHasData(propertyName) {
+	return function (req, res, next) {
+		const { data = {} } = req.body
+		if (data[propertyName] && data['price'] > 0) {
+			next()
+		}
+		if (data['price'] < 1 || !data['price']) {
+			next({ status: 400, message: 'Dish must include a price.' })
+		}
+		next({ status: 400, message: `Dish must include a ${propertyName}.` })
 	}
-	if (!description || description === '') {
-		next({
-			status: 400,
-			message: 'A description property is required.',
-		})
-	}
-	if (!price) {
-		next({
-			status: 400,
-			message: 'A price property is required.',
-		})
-	}
-	if (price < 0 || !Number.isInteger(price)) {
-		next({
-			status: 400,
-			message: 'price must be an integer above 0.',
-		})
-	}
-	if (!image_url || image_url === '') {
-		next({
-			status: 400,
-			message: 'A image_url property is required.',
-		})
-	}
-	next()
 }
 
-function idExists(req, res, next) {
+function bodyHasID(req, res, next) {
 	const { dishId } = req.params
-	const { data: { id } = {} } = req.body
-	if (!id || id === dishId) {
-		res.locals.dishId = dishId
+	const {
+		data: { id },
+	} = req.body
+	if (!id || Number(id) === Number(dishId)) {
+		// res.locals.dishId = dishId
 		return next()
 	}
 	next({
 		status: 400,
-		message: `Dish id does not match route id. Dish ${id}. Route ${dishId}`,
+		message: `Dish id does not match route id. Dish ${id}. Route ${dishId}.`,
 	})
+}
+
+function bodyIDisNumber(req, res, next) {
+	const dish = res.locals.dish
+	if (typeof dish.price !== 'string') {
+		return next()
+	}
+	next({ status: 400, message: 'Updated dish price must be a number.' })
 }
 
 // --- HTTP handlers ---
@@ -80,10 +68,10 @@ function create(req, res) {
 	const { data: { name, description, price, image_url } = {} } = req.body
 	const newDish = {
 		id: nextId(),
-		name: name,
-		description: description,
-		price: price,
-		image_url: image_url,
+		name,
+		description,
+		price,
+		image_url,
 	}
 	dishes.push(newDish)
 	res.status(201).json({ data: newDish })
@@ -95,18 +83,24 @@ function read(req, res) {
 }
 
 // update handler
-function update(req, res) {
-	const { data: { name, description, price, image_url } = {} } = req.body
+function update(req, res, next) {
+	const dish = res.locals.dish
+	const { dishId } = req.params
+	// const foundDish = dishes.find((dish) => dish.id === dishId)
+	const {
+		data: { id, name, description, price, image_url },
+	} = req.body
 
-	res.locals.dish = {
-		id: res.locals.dishId,
-		name: name,
-		description: description,
-		price: price,
-		image_url: image_url,
+	if (id !== dishId) {
+		next({ status: 400 })
 	}
 
-	res.json({ data: res.locals.dish })
+	dish.name = name
+	dish.description = description
+	dish.price = price
+	dish.image_url = image_url
+
+	res.json({ data: dish })
 }
 
 // list handler
@@ -116,7 +110,22 @@ function list(req, res) {
 
 module.exports = {
 	list,
-	read: [dishExists, read],
-	create: [bodyExists, create],
-	update: [dishExists, bodyExists, idExists, update],
+	read: [bodyHasDish, read],
+	create: [
+		bodyHasData('name'),
+		bodyHasData('description'),
+		bodyHasData('price'),
+		bodyHasData('image_url'),
+		create,
+	],
+	update: [
+		bodyHasDish,
+		bodyHasID,
+		bodyHasData('name'),
+		bodyHasData('description'),
+		bodyHasData('price'),
+		bodyHasData('image_url'),
+		bodyIDisNumber,
+		update,
+	],
 }

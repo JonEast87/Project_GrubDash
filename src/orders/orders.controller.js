@@ -124,9 +124,10 @@ function read(req, res) {
 
 // update handler
 function update(req, res) {
+	const originalOrder = res.locals.order
 	const { data: { deliverTo, mobileNumber, status, dishes } = {} } = req.body
 	res.locals.order = {
-		id: res.locals.order.id,
+		id: originalOrder.id,
 		deliverTo: deliverTo,
 		mobileNumber: mobileNumber,
 		dishes: dishes,
